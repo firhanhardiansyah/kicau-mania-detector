@@ -1,3 +1,24 @@
-venv
-__pycache__
-assets/models
+# Local Python environments
+.venv/
+venv/
+
+# Python bytecode
+__pycache__/
+*.py[cod]
+
+# Downloaded MediaPipe models
+/assets/models/
+
+# Test and coverage output
+.pytest_cache/
+.coverage
+.coverage.*
+htmlcov/
+
+# Local environment settings (keep examples versioned)
+.env
+.env.*
+!.env.example
+
+# macOS metadata
+.DS_Store
