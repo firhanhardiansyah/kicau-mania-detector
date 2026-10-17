@@ -77,8 +77,8 @@ command from Terminal to trigger its camera permission request.
   visible, and whether a wave was detected. These overlays are hidden by default.
 - Focus the webcam preview window and press **T** to test the music and dancing
   cat for five seconds without performing a gesture. Press **Q** or **Esc** to exit.
-- Dancing cats appear in both bottom corners of the camera preview, with the
-  left copy mirrored. They play in sync, sized to fit while preserving the GIF's
+- Dancing cats appear in all four corners of the camera preview, with both
+  left copies mirrored. They play in sync, sized to fit while preserving the GIF's
   aspect ratio and transparency.
   Black background areas connected to the GIF's edges are made transparent
   automatically; enclosed dark details such as the cat's eyes are preserved.

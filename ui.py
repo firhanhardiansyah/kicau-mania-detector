@@ -77,9 +77,10 @@ def draw_debug_overlay(frame: np.ndarray, data: Dict) -> None:
 
 
 def draw_gif_overlay(
-    frame: np.ndarray, gif_frame: np.ndarray, *, left: bool = False, mirror: bool = False
+    frame: np.ndarray, gif_frame: np.ndarray, *, left: bool = False,
+    top: bool = False, mirror: bool = False
 ) -> None:
-    """Draw the animation in a bottom corner, optionally mirrored horizontally."""
+    """Draw the animation in a corner, optionally mirrored horizontally."""
     if mirror:
         gif_frame = cv2.flip(gif_frame, 1)
     height, width = frame.shape[:2]
@@ -90,7 +91,7 @@ def draw_gif_overlay(
     overlay_height = max(1, int(gif_height * scale))
     size = (overlay_width, overlay_height)
     x = margin if left else width - overlay_width - margin
-    y = height - overlay_height - margin
+    y = margin if top else height - overlay_height - margin
     target = frame[y:y + overlay_height, x:x + overlay_width]
     if gif_frame.shape[2] == 4:
         source_alpha = gif_frame[:, :, 3].astype(np.float32) / 255.0
