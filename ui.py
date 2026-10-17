@@ -45,6 +45,17 @@ def draw_debug_overlay(frame: np.ndarray, data: Dict) -> None:
             (255, 255, 255),
             2,
         )
+    mouth_ok = bool(data.get("mouth_covered"))
+    distance = data.get("mouth_distance")
+    distance_text = f"{distance:.0f}/{data.get('mouth_radius', 60):.0f}px" if distance is not None else "--"
+    lines = [
+        f"Mouth: {'OK' if mouth_ok else 'bring either hand closer'} ({distance_text})",
+        f"Other hand: {'visible' if data.get('waving_hand_present') else 'not visible'} | Wave: {'OK' if wave and wave.is_waving else 'wave side to side'}",
+        "T: test music + GIF (5s) | Q / Esc: quit",
+    ]
+    for i, text in enumerate(lines):
+        cv2.putText(frame, text, (12, 80 + i * 24), cv2.FONT_HERSHEY_SIMPLEX,
+                    0.5, (255, 255, 255), 2)
 
 
 class GifPlayer:

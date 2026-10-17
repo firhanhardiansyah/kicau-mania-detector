@@ -51,6 +51,10 @@ class WaveMotionTracker:
     def get_points(self) -> List[Tuple[float, float]]:
         return [(p[1], p[2]) for p in self._points]
 
+    def reset(self) -> None:
+        self._points.clear()
+        self.last_result = WaveResult(False, 0.0, 0, 0.0, 0.0)
+
     def _prune(self, now: float) -> None:
         while self._points and now - self._points[0][0] > self.window_seconds:
             self._points.popleft()
@@ -61,13 +65,15 @@ class WaveMotionTracker:
         ratios: List[float] = []
         last_sign = 0
 
-        for i in range(1, len(self._points)):
-            t0, x0, y0 = self._points[i - 1]
-            t1, x1, y1 = self._points[i]
+        if not self._points:
+            return 0, 0.0, 0.0
+        t0, x0, y0 = self._points[0]
+        for t1, x1, y1 in list(self._points)[1:]:
             dt = max(t1 - t0, 1e-6)
             dx = x1 - x0
             dy = y1 - y0
-            if abs(dx) < self.min_move_px and abs(dy) < self.min_move_px:
+            # Accumulate small frame-to-frame moves instead of discarding them.
+            if abs(dx) < self.min_move_px:
                 continue
             speed = abs(dx) / dt
             speeds.append(speed)
@@ -79,6 +85,7 @@ class WaveMotionTracker:
             if last_sign != 0 and sign != last_sign:
                 dir_changes += 1
             last_sign = sign
+            t0, x0, y0 = t1, x1, y1
 
         avg_speed = sum(speeds) / len(speeds) if speeds else 0.0
         avg_ratio = sum(ratios) / len(ratios) if ratios else 0.0

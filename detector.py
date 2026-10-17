@@ -2,8 +2,12 @@ from dataclasses import dataclass
 from pathlib import Path
 from typing import Dict, Optional, Tuple
 import math
+import shutil
+import ssl
+import tempfile
 import urllib.request
 
+import certifi
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -11,23 +15,23 @@ import numpy as np
 from motion import WaveMotionTracker, WaveResult
 
 MOUTH_LANDMARKS = [13, 14, 78, 308, 61, 291]
-MODEL_DIR = Path("assets/models")
+MODEL_DIR = Path(__file__).resolve().parent / "assets" / "models"
 HAND_MODEL_PATH = MODEL_DIR / "hand_landmarker.task"
 FACE_MODEL_PATH = MODEL_DIR / "face_landmarker.task"
-HAND_MODEL_URL = "https://storage.googleapis.com/mediapipe-assets/hand_landmarker.task"
-FACE_MODEL_URL = "https://storage.googleapis.com/mediapipe-assets/face_landmarker.task"
+HAND_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/hand_landmarker/hand_landmarker/float16/1/hand_landmarker.task"
+FACE_MODEL_URL = "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task"
 
 
 @dataclass
 class DetectorConfig:
     mouth_distance_px: float = 60.0
-    wave_speed_px_s: float = 180.0
-    wave_dir_changes: int = 4
-    wave_min_move_px: float = 6.0
-    wave_window_s: float = 0.8
-    wave_horizontal_ratio: float = 1.4
+    wave_speed_px_s: float = 90.0
+    wave_dir_changes: int = 2
+    wave_min_move_px: float = 4.0
+    wave_window_s: float = 1.5
+    wave_horizontal_ratio: float = 1.1
     mouth_hold_s: float = 0.25
-    wave_hold_s: float = 0.3
+    wave_hold_s: float = 0.1
     cooldown_s: float = 2.0
 
 
@@ -70,6 +74,10 @@ class KicauDetector:
         self.mouth_start: Optional[float] = None
         self.wave_start: Optional[float] = None
         self.cooldown_until: float = 0.0
+        self._last_mouth = None
+        self._last_face_at = float("-inf")
+        self._mouth_radius = config.mouth_distance_px
+        self._wave_hand_label = None
 
     def process(self, frame_bgr: np.ndarray, timestamp: float) -> Dict:
         height, width = frame_bgr.shape[:2]
@@ -80,6 +88,16 @@ class KicauDetector:
         face_result = self.face_mesh.detect_for_video(image, timestamp_ms)
 
         mouth_center = self._get_mouth_center(face_result, width, height)
+        if mouth_center is not None:
+            self._last_mouth = mouth_center
+            self._last_face_at = timestamp
+            face_xs = [lm.x * width for lm in face_result.face_landmarks[0]]
+            self._mouth_radius = max(
+                self.config.mouth_distance_px, (max(face_xs) - min(face_xs)) * 0.4
+            )
+        elif timestamp - self._last_face_at <= 0.5:
+            # A hand over the mouth can briefly hide the face landmarks.
+            mouth_center = self._last_mouth
         left_hand = None
         right_hand = None
 
@@ -94,28 +112,43 @@ class KicauDetector:
                 elif label == "RIGHT":
                     right_hand = hand_data
 
-        left_near_mouth = False
-        if mouth_center and left_hand:
-            dist = self._distance(mouth_center, left_hand["palm_center"])
-            left_near_mouth = dist <= self.config.mouth_distance_px
+        # Assign roles by position, so either hand can cover the mouth.
+        hands = [hand for hand in (left_hand, right_hand) if hand is not None]
+        covering_hand = None
+        mouth_distance = None
+        if mouth_center is not None and hands:
+            covering_hand = min(
+                hands, key=lambda hand: self._hand_mouth_distance(hand, mouth_center)
+            )
+            mouth_distance = self._hand_mouth_distance(covering_hand, mouth_center)
+            if mouth_distance > self._mouth_radius:
+                covering_hand = None
+        mouth_covered = covering_hand is not None
+        waving_hand = next((hand for hand in hands if hand is not covering_hand), None)
+        wave_label = waving_hand["label"] if waving_hand else None
+        if wave_label != self._wave_hand_label:
+            self.motion.reset()
+            self._wave_hand_label = wave_label
 
         wave_result = WaveResult(False, 0.0, 0, 0.0, 0.0)
-        if right_hand:
-            rx, ry = right_hand["wrist"]
+        if waving_hand:
+            rx, ry = waving_hand["palm_center"]
             wave_result = self.motion.update(rx, ry, timestamp)
         else:
-            self.motion.last_result = WaveResult(False, 0.0, 0, 0.0, 0.0)
+            self.motion.reset()
 
-        right_present = right_hand is not None
         triggered, display_state = self._update_state(
-            left_near_mouth, right_present, wave_result, timestamp
+            mouth_covered, waving_hand is not None, wave_result, timestamp
         )
 
         return {
             "mouth_center": mouth_center,
             "left_hand": left_hand,
             "right_hand": right_hand,
-            "left_near_mouth": left_near_mouth,
+            "mouth_covered": mouth_covered,
+            "mouth_distance": mouth_distance,
+            "mouth_radius": self._mouth_radius,
+            "waving_hand_present": waving_hand is not None,
             "wave": wave_result,
             "state": display_state,
             "triggered": triggered,
@@ -141,7 +174,8 @@ class KicauDetector:
                 self.state = "IDLE"
                 self.mouth_start = None
             elif (
-                self.mouth_start and now - self.mouth_start >= self.config.mouth_hold_s
+                self.mouth_start is not None
+                and now - self.mouth_start >= self.config.mouth_hold_s
             ):
                 self.state = "WAVING"
                 self.wave_start = None
@@ -173,7 +207,16 @@ class KicauDetector:
                 self.mouth_start = None
                 self.wave_start = None
 
+        if not triggered and self.state == "IDLE":
+            display_state = "IDLE"
         return triggered, display_state
+
+    def _hand_mouth_distance(self, hand: Dict, mouth_center) -> float:
+        # Fingers often cover the mouth while the palm stays below it.
+        return min(
+            self._distance(mouth_center, point)
+            for point in [hand["palm_center"], *hand["landmarks"]]
+        )
 
     def _get_mouth_center(
         self, face_result, width: int, height: int
@@ -208,6 +251,21 @@ class KicauDetector:
 
     @staticmethod
     def _download_if_missing(path: Path, url: str) -> None:
-        if path.exists():
+        if path.is_file() and path.stat().st_size > 0:
             return
-        urllib.request.urlretrieve(url, str(path))
+        context = ssl.create_default_context(cafile=certifi.where())
+        temporary_path = None
+        try:
+            with urllib.request.urlopen(url, context=context, timeout=60) as response:
+                with tempfile.NamedTemporaryFile(dir=path.parent, delete=False) as output:
+                    temporary_path = Path(output.name)
+                    shutil.copyfileobj(response, output)
+            temporary_path.replace(path)
+        except (OSError, urllib.error.URLError) as exc:
+            raise RuntimeError(
+                f"Failed to download model {path.name}. Check your internet connection "
+                "and run: python -m pip install --upgrade certifi"
+            ) from exc
+        finally:
+            if temporary_path is not None:
+                temporary_path.unlink(missing_ok=True)
