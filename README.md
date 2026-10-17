@@ -1,12 +1,61 @@
-# Kicau Mania Dance Detector
+<h1 align="center">Kicau Mania — Dance, Detect, Celebrate</h1>
 
-Real-time desktop app that detects the Kicau Mania dance with webcam input.
+<p align="center">
+  <img src="assets/cat-transparent.gif" alt="Dancing Kicau Mania cat" width="160" />
+  <br>
+  <em>A real-time desktop dance detector powered by your webcam.
+    <br>Cover your mouth, wave your hand, and let the dancing cats take over.</em>
+  <br>
+</p>
 
-## Setup
+<p align="center">
+  <a href="https://github.com/fnilvuwu/Kicau-Mania-Detector"><strong>Kicau Mania Detector</strong></a>
+  <br>
+</p>
 
-Create a virtual environment and install dependencies:
+<p align="center">
+  <a href="#documentation">Documentation</a>
+  ·
+  <a href="#installation">Installation</a>
+  ·
+  <a href="#usage">Usage</a>
+  ·
+  <a href="https://github.com/fnilvuwu/Kicau-Mania-Detector/issues">Report an Issue</a>
+  <br>
+  <br>
+</p>
 
-macOS / Linux:
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3776AB?logo=python&amp;logoColor=white" alt="Built with Python" />
+  <img src="https://img.shields.io/badge/MediaPipe-0097A7?logo=mediapipe&amp;logoColor=white" alt="MediaPipe landmark detection" />
+  <img src="https://img.shields.io/badge/OpenCV-5C3EE8?logo=opencv&amp;logoColor=white" alt="OpenCV camera capture" />
+  <img src="https://img.shields.io/badge/Pygame-Fullscreen-20984B" alt="Pygame fullscreen preview" />
+</p>
+
+<hr>
+
+## Documentation
+
+Kicau Mania Detector uses MediaPipe hand and face landmarks to recognize the
+Kicau Mania dance. When the gesture is detected, it plays music and displays six
+synchronized dancing cats inside the camera preview.
+
+- **Fullscreen camera:** the complete image stays centered and proportional,
+  with any unused space distributed evenly on opposite sides.
+- **Six dancing cats:** four corner GIFs and a pair at the top center, with the
+  left cat in each pair mirrored and black backgrounds made transparent.
+- **Either hand works:** bring one hand close to your mouth and wave the other.
+- **Tracking tolerance:** short interruptions do not immediately reset the gesture;
+  sensitivity adjusts to face size, while small landmark jitter is rejected.
+- **Optional debug overlay:** inspect landmarks, motion, and detection status
+  with `--debug`.
+
+## Installation
+
+Install Python, then open a terminal in the project directory. A webcam and an
+internet connection are required for the first run to download the detection models.
+
+### macOS / Linux
 
 ```bash
 python3 -m venv .venv
@@ -14,77 +63,124 @@ source .venv/bin/activate
 python -m pip install -r requirements.txt
 ```
 
-Windows:
+### Windows (PowerShell)
 
 ```powershell
-python -m venv venv
-venv\Scripts\activate
-pip install -r requirements.txt
+python -m venv .venv
+.\.venv\Scripts\Activate.ps1
+python -m pip install -r requirements.txt
 ```
 
-## Assets
+## Usage
 
-Place your files here:
-
-- assets/music.mp3
-- assets/cat.gif
-
-## MediaPipe Models
-
-The app uses MediaPipe Tasks models for hands and face mesh. On first run it downloads:
-
-- assets/models/hand_landmarker.task
-- assets/models/face_landmarker.task
-
-Ensure you have an internet connection the first time you start the app.
-Downloads use the trusted CA certificates supplied by `certifi`. If Python
-reports `CERTIFICATE_VERIFY_FAILED`, update it with
-`python -m pip install --upgrade certifi`.
-
-## Run
+Start the application with your virtual environment activated:
 
 ```bash
 python main.py
 ```
 
-The camera preview opens fullscreen with the complete camera image centered
-without stretching or cropping. Any unused space is split evenly between
-opposite sides. Pygame handles the fullscreen display directly, avoiding the
-extra window padding seen with OpenCV on macOS. Press **Q** or **Esc** to exit.
+The camera preview opens fullscreen. Keep your face and both hands visible, bring
+one hand close to your mouth, and wave the other hand from side to side a few
+times. Fingers near the mouth count too. Music and GIFs start when the gesture is
+recognized and stop shortly after the gesture ends.
 
-To show detection status, landmarks, and motion trajectory on the camera preview:
+To display detection information on the preview:
 
 ```bash
 python main.py --debug
 ```
 
-## Notes
+### Keyboard controls
 
-### macOS camera permission
+Click the camera preview to give it keyboard focus.
 
-If OpenCV reports `not authorized to capture video` or `Failed to open webcam`,
-allow camera access in **System Settings > Privacy & Security > Camera** for the
-app used to run Python (such as Terminal, iTerm, VS Code, or Codex). Choose
-**Allow** if a permission prompt appears. Quit and reopen that app after granting
-permission, then run `python main.py` again. If the app is not listed, run the
-command from Terminal to trigger its camera permission request.
+| Key | Action |
+| --- | --- |
+| **T** | Test the music and all six GIFs for five seconds. |
+| **Q** or **Esc** | Close the application. |
 
-### Detection
+### Assets
 
-- Bring either hand close to your mouth (fingers count), then wave the other
-  hand side to side a few times. Keep your face and both hands in view.
-- Detection tolerates brief tracking interruptions (0.3 seconds), keeps the
-  last mouth position for up to 0.8 seconds when obscured, and adapts wave
-  sensitivity to face size. Small landmark jitter does not count as a wave.
-- With `--debug`, the preview shows mouth proximity, whether the other hand is
-  visible, and whether a wave was detected. These overlays are hidden by default.
-- Focus the webcam preview window and press **T** to test the music and dancing
-  cat for five seconds without performing a gesture. Press **Q** or **Esc** to exit.
-- Dancing cats appear in all four corners of the camera preview, with both
-  left copies mirrored. An additional mirrored pair sits at the top center,
-  sized to fit between the corner GIFs. All six play in sync, preserving the GIF's
-  aspect ratio and transparency.
-  Black background areas connected to the GIF's edges are made transparent
-  automatically; enclosed dark details such as the cat's eyes are preserved.
-- The preview is not mirrored by default. Either hand can perform either role.
-- Edit `DetectorConfig` in `detector.py` to tune thresholds and cooldowns.
+The repository includes the music and animation. To customize them, replace the
+files at these paths:
+
+| File | Purpose |
+| --- | --- |
+| `assets/music.mp3` | Music played when a dance is detected. |
+| `assets/cat.gif` | Animation shared by all six cats. |
+
+Black areas connected to the GIF's edges are automatically made transparent.
+Enclosed dark details, such as the cat's eyes, are preserved.
+
+### Detection models
+
+On the first run, the application downloads these MediaPipe models automatically:
+
+```text
+assets/models/hand_landmarker.task
+assets/models/face_landmarker.task
+```
+
+Later runs reuse the downloaded files. HTTPS downloads use trusted CA certificates
+provided by `certifi`.
+
+## Troubleshooting
+
+### Camera access on macOS
+
+If the terminal reports `not authorized to capture video` or
+`Failed to open webcam`:
+
+1. Open **System Settings → Privacy & Security → Camera**.
+2. Allow access for the application running Python, such as Terminal, iTerm,
+   VS Code, or Codex. Choose **Allow** if prompted.
+3. Quit and reopen that application, then run `python main.py` again.
+
+If the application is not listed, run the command from Terminal to trigger the
+permission request. Also check that a camera is connected and available.
+
+### Gesture is difficult to detect
+
+Keep your face and both hands in view, use even lighting, and wave sideways
+several times while keeping the other hand near your mouth. Either hand can
+perform either role.
+
+Run `python main.py --debug` to check mouth proximity, visibility of the other
+hand, and wave detection. The detector tolerates tracking gaps of up to 0.3 seconds
+and keeps the last mouth position for up to 0.8 seconds when face landmarks are
+briefly obscured.
+
+To adjust thresholds, hold times, or cooldowns, edit `DetectorConfig` in
+[`detector.py`](detector.py).
+
+### Music or GIFs do not appear
+
+Focus the camera preview and press **T** to test playback without performing a
+gesture. Check the files under `assets/`, your audio output and volume, and the
+terminal for any errors.
+
+### SSL certificate error
+
+If a model download reports `CERTIFICATE_VERIFY_FAILED`, update the certificate
+bundle inside your virtual environment:
+
+```bash
+python -m pip install --upgrade certifi
+```
+
+Check your internet connection and run the application again.
+
+## Development
+
+Detection logic lives in [`detector.py`](detector.py), wave analysis in
+[`motion.py`](motion.py), and preview rendering in [`ui.py`](ui.py).
+
+Run the automated tests from the project directory:
+
+```bash
+python -m unittest discover -s tests -v
+```
+
+To report a bug, include your operating system, Python version, steps to reproduce,
+and relevant terminal output in a
+[GitHub issue](https://github.com/fnilvuwu/Kicau-Mania-Detector/issues).
