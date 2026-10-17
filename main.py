@@ -1,12 +1,14 @@
+import argparse
 import time
 import sys
 from pathlib import Path
 
 import cv2
+import pygame
 
 from audio import AudioPlayer
 from detector import DetectorConfig, KicauDetector
-from ui import draw_debug_overlay, GifPlayer, GifWindow
+from ui import center_camera_on_screen, draw_debug_overlay, draw_gif_overlay, GifPlayer
 
 ASSET_DIR = Path(__file__).resolve().parent / "assets"
 ASSET_MUSIC_PATH = str(ASSET_DIR / "music.mp3")
@@ -14,15 +16,21 @@ ASSET_GIF_PATH = str(ASSET_DIR / "cat.gif")
 
 MIRROR_PREVIEW = False
 DANCE_GRACE_S = 1
+WINDOW_TITLE = "Kicau Mania Detector"
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Kicau Mania Dance Detector")
+    parser.add_argument(
+        "--debug", action="store_true",
+        help="Show detection status, landmarks, and motion trajectory on the camera preview.",
+    )
+    args = parser.parse_args()
     config = DetectorConfig()
 
     detector = KicauDetector(config)
     audio = AudioPlayer(ASSET_MUSIC_PATH)
     gif = GifPlayer(ASSET_GIF_PATH)
-    gif_window = GifWindow()
     dance_live = False
     last_dance_active = 0.0
     preview_until = 0.0
@@ -46,15 +54,21 @@ def main() -> None:
             print("Also check that a camera is connected and available.")
             return
 
-        while True:
+        pygame.display.init()
+        pygame.display.set_caption(WINDOW_TITLE)
+        screen = pygame.display.set_mode((0, 0), pygame.FULLSCREEN)
+
+        running = True
+        while running:
             ok, frame = cap.read()
             if not ok:
                 break
 
             now = time.monotonic()
             data = detector.process(frame, now)
-            data["trajectory"] = detector.motion.get_points()
-            draw_debug_overlay(frame, data)
+            if args.debug:
+                data["trajectory"] = detector.motion.get_points()
+                draw_debug_overlay(frame, data)
 
             wave = data.get("wave")
             dance_active = bool(data.get("mouth_covered")) and bool(
@@ -77,34 +91,40 @@ def main() -> None:
                 dance_live = False
                 audio.stop()
                 gif.stop()
-                gif_window.hide()
 
+            cat_frame = None
             if dance_live:
                 if not gif.playing:
                     gif.start(now)
                 cat_frame = gif.get_frame(now)
-                if cat_frame is not None:
-                    gif_window.show(cat_frame)
             else:
                 gif.stop()
-                gif_window.hide()
 
             display = cv2.flip(frame, 1) if MIRROR_PREVIEW else frame
-            cv2.imshow("Kicau Mania Detector", display)
+            if cat_frame is not None:
+                draw_gif_overlay(display, cat_frame)
+                draw_gif_overlay(display, cat_frame, left=True, mirror=True)
+            screen_width, screen_height = screen.get_size()
+            display = center_camera_on_screen(display, screen_width, screen_height)
+            rgb = cv2.cvtColor(display, cv2.COLOR_BGR2RGB)
+            pygame.surfarray.blit_array(screen, rgb.swapaxes(0, 1))
+            pygame.display.flip()
 
-            key = cv2.waitKey(1) & 0xFF
-            if key in (27, ord("q")):
-                break
-            if key == ord("t"):
-                preview_until = now + 5.0
-                last_dance_active = now
-                dance_live = True
-                print("Testing music and GIF for 5 seconds.")
-                audio.play_once()
+            for event in pygame.event.get():
+                if event.type == pygame.QUIT or (
+                    event.type == pygame.KEYDOWN and event.key in (pygame.K_ESCAPE, pygame.K_q)
+                ):
+                    running = False
+                    break
+                if event.type == pygame.KEYDOWN and event.key == pygame.K_t:
+                    preview_until = now + 5.0
+                    last_dance_active = now
+                    dance_live = True
+                    print("Testing music and GIF for 5 seconds.")
+                    audio.play_once()
     finally:
         cap.release()
-        cv2.destroyAllWindows()
-        gif_window.hide()
+        pygame.display.quit()
         detector.shutdown()
         audio.shutdown()
 

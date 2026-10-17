@@ -1,9 +1,27 @@
-from typing import Dict, Optional, Tuple
-import time
+from typing import Dict, Optional
 
 import cv2
 import numpy as np
 from PIL import Image, ImageSequence
+
+
+def center_camera_on_screen(frame: np.ndarray, screen_width: int, screen_height: int) -> np.ndarray:
+    """Fit the full camera image on a canvas with equal margins on opposite sides."""
+    if screen_width <= 0 or screen_height <= 0:
+        return frame
+    height, width = frame.shape[:2]
+    scale = min(screen_width / width, screen_height / height)
+    image_width = max(1, min(screen_width, round(width * scale)))
+    image_height = max(1, min(screen_height, round(height * scale)))
+    image = cv2.resize(
+        frame, (image_width, image_height),
+        interpolation=cv2.INTER_AREA if scale < 1 else cv2.INTER_LINEAR,
+    )
+    canvas = np.zeros((screen_height, screen_width, 3), dtype=frame.dtype)
+    x = (screen_width - image_width) // 2
+    y = (screen_height - image_height) // 2
+    canvas[y:y + image_height, x:x + image_width] = image
+    return canvas
 
 
 def draw_debug_overlay(frame: np.ndarray, data: Dict) -> None:
@@ -58,9 +76,50 @@ def draw_debug_overlay(frame: np.ndarray, data: Dict) -> None:
                     0.5, (255, 255, 255), 2)
 
 
+def draw_gif_overlay(
+    frame: np.ndarray, gif_frame: np.ndarray, *, left: bool = False, mirror: bool = False
+) -> None:
+    """Draw the animation in a bottom corner, optionally mirrored horizontally."""
+    if mirror:
+        gif_frame = cv2.flip(gif_frame, 1)
+    height, width = frame.shape[:2]
+    gif_height, gif_width = gif_frame.shape[:2]
+    margin = min(16, width // 20, height // 20)
+    scale = min(1.0, width * 0.3 / gif_width, height * 0.4 / gif_height)
+    overlay_width = max(1, int(gif_width * scale))
+    overlay_height = max(1, int(gif_height * scale))
+    size = (overlay_width, overlay_height)
+    x = margin if left else width - overlay_width - margin
+    y = height - overlay_height - margin
+    target = frame[y:y + overlay_height, x:x + overlay_width]
+    if gif_frame.shape[2] == 4:
+        source_alpha = gif_frame[:, :, 3].astype(np.float32) / 255.0
+        # Resize premultiplied colors so transparent black does not create halos.
+        colors = cv2.resize(
+            gif_frame[:, :, :3] * source_alpha[:, :, None], size,
+            interpolation=cv2.INTER_AREA,
+        )
+        alpha = cv2.resize(source_alpha, size, interpolation=cv2.INTER_AREA)[:, :, None]
+        target[:] = np.clip(np.rint(colors + target * (1.0 - alpha)), 0, 255).astype(np.uint8)
+    else:
+        target[:] = cv2.resize(gif_frame, size, interpolation=cv2.INTER_AREA)
+
+
+def remove_black_background(frame: np.ndarray, threshold: int = 35) -> np.ndarray:
+    """Remove near-black areas connected to the edges, keeping enclosed dark details."""
+    dark = np.max(frame[:, :, :3], axis=2) <= threshold
+    # Padding joins background regions touching any of the four edges.
+    mask = np.pad(dark.astype(np.uint8), 1, constant_values=1)
+    cv2.floodFill(mask, None, (0, 0), 2, flags=4)
+    result = frame.copy()
+    result[mask[1:-1, 1:-1] == 2, 3] = 0
+    return result
+
+
 class GifPlayer:
-    def __init__(self, gif_path: str) -> None:
+    def __init__(self, gif_path: str, transparent_black: bool = True) -> None:
         self.gif_path = gif_path
+        self.transparent_black = transparent_black
         self.frames = []
         self.durations = []
         self.total_duration = 0.0
@@ -78,8 +137,10 @@ class GifPlayer:
 
         for frame in ImageSequence.Iterator(img):
             duration_ms = frame.info.get("duration", 100)
-            frame_rgb = frame.convert("RGB")
-            frame_np = np.array(frame_rgb)[:, :, ::-1]
+            frame_rgba = frame.convert("RGBA")
+            frame_np = np.array(frame_rgba)[:, :, [2, 1, 0, 3]]
+            if self.transparent_black:
+                frame_np = remove_black_background(frame_np)
             self.frames.append(frame_np)
             self.durations.append(duration_ms / 1000.0)
 
@@ -105,20 +166,3 @@ class GifPlayer:
             if elapsed <= acc:
                 return frame
         return self.frames[-1]
-
-
-class GifWindow:
-    def __init__(self, title: str = "Dancing Cat") -> None:
-        self.title = title
-        self.is_open = False
-
-    def show(self, frame: np.ndarray) -> None:
-        if frame is None:
-            return
-        cv2.imshow(self.title, frame)
-        self.is_open = True
-
-    def hide(self) -> None:
-        if self.is_open:
-            cv2.destroyWindow(self.title)
-            self.is_open = False
