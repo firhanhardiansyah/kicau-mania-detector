@@ -73,6 +73,9 @@ command from Terminal to trigger its camera permission request.
 
 - Bring either hand close to your mouth (fingers count), then wave the other
   hand side to side a few times. Keep your face and both hands in view.
+- Detection tolerates brief tracking interruptions (0.3 seconds), keeps the
+  last mouth position for up to 0.8 seconds when obscured, and adapts wave
+  sensitivity to face size. Small landmark jitter does not count as a wave.
 - With `--debug`, the preview shows mouth proximity, whether the other hand is
   visible, and whether a wave was detected. These overlays are hidden by default.
 - Focus the webcam preview window and press **T** to test the music and dancing

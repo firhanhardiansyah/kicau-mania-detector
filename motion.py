@@ -42,6 +42,9 @@ class WaveMotionTracker:
             avg_speed >= self.min_speed
             and dir_changes >= self.min_dir_changes
             and avg_ratio >= self.min_horizontal_ratio
+            # Fast landmark jitter must not count as a deliberate wave.
+            and max(p[1] for p in self._points) - min(p[1] for p in self._points)
+            >= self.min_move_px * 4
         )
         self.last_result = WaveResult(
             is_waving, confidence, dir_changes, avg_speed, avg_ratio
