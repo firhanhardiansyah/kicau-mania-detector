@@ -81,7 +81,8 @@ command from Terminal to trigger its camera permission request.
 - Focus the webcam preview window and press **T** to test the music and dancing
   cat for five seconds without performing a gesture. Press **Q** or **Esc** to exit.
 - Dancing cats appear in all four corners of the camera preview, with both
-  left copies mirrored. They play in sync, sized to fit while preserving the GIF's
+  left copies mirrored. An additional mirrored pair sits at the top center,
+  sized to fit between the corner GIFs. All six play in sync, preserving the GIF's
   aspect ratio and transparency.
   Black background areas connected to the GIF's edges are made transparent
   automatically; enclosed dark details such as the cat's eyes are preserved.

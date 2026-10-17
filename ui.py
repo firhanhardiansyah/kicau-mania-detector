@@ -78,19 +78,25 @@ def draw_debug_overlay(frame: np.ndarray, data: Dict) -> None:
 
 def draw_gif_overlay(
     frame: np.ndarray, gif_frame: np.ndarray, *, left: bool = False,
-    top: bool = False, mirror: bool = False
+    top: bool = False, mirror: bool = False, center: bool = False
 ) -> None:
-    """Draw the animation in a corner, optionally mirrored horizontally."""
+    """Draw in a corner or one half of a centered pair, optionally mirrored."""
     if mirror:
         gif_frame = cv2.flip(gif_frame, 1)
     height, width = frame.shape[:2]
     gif_height, gif_width = gif_frame.shape[:2]
     margin = min(16, width // 20, height // 20)
     scale = min(1.0, width * 0.3 / gif_width, height * 0.4 / gif_height)
+    if center:
+        # Fit the pair between the existing corner GIFs with a small gap.
+        scale = min(scale, max(1, width * 0.2 - 2 * margin) / gif_width)
     overlay_width = max(1, int(gif_width * scale))
     overlay_height = max(1, int(gif_height * scale))
     size = (overlay_width, overlay_height)
     x = margin if left else width - overlay_width - margin
+    if center:
+        x = width // 2 - margin // 2 - overlay_width if left else (width + 1) // 2 + margin // 2
+        x = max(0, min(width - overlay_width, x))
     y = margin if top else height - overlay_height - margin
     target = frame[y:y + overlay_height, x:x + overlay_width]
     if gif_frame.shape[2] == 4:

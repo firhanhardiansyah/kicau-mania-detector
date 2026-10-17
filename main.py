@@ -106,6 +106,8 @@ def main() -> None:
                 draw_gif_overlay(display, cat_frame, left=True, mirror=True)
                 draw_gif_overlay(display, cat_frame, top=True)
                 draw_gif_overlay(display, cat_frame, top=True, left=True, mirror=True)
+                draw_gif_overlay(display, cat_frame, top=True, center=True)
+                draw_gif_overlay(display, cat_frame, top=True, center=True, left=True, mirror=True)
             screen_width, screen_height = screen.get_size()
             display = center_camera_on_screen(display, screen_width, screen_height)
             rgb = cv2.cvtColor(display, cv2.COLOR_BGR2RGB)
