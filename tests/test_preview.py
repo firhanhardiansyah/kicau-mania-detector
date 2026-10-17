@@ -6,7 +6,7 @@ from unittest.mock import Mock, patch
 import numpy as np
 import pygame
 
-import main
+from kicau import app, cli
 
 
 class PreviewTests(unittest.TestCase):
@@ -15,17 +15,17 @@ class PreviewTests(unittest.TestCase):
             with self.subTest(debug=debug), ExitStack() as stack:
                 argv = ["main.py"] + (["--debug"] if debug else [])
                 stack.enter_context(patch.object(sys, "argv", argv))
-                detector = stack.enter_context(patch.object(main, "KicauDetector")).return_value
+                detector = stack.enter_context(patch.object(app, "KicauDetector")).return_value
                 detector.process.return_value = {"triggered": False}
-                audio = stack.enter_context(patch.object(main, "AudioPlayer")).return_value
-                gif = stack.enter_context(patch.object(main, "GifPlayer")).return_value
+                audio = stack.enter_context(patch.object(app, "AudioPlayer")).return_value
+                gif = stack.enter_context(patch.object(app, "GifPlayer")).return_value
                 gif.get_frame.return_value = np.full((40, 40, 4), 255, dtype=np.uint8)
                 camera = np.full((180, 320, 3), (10, 80, 200), dtype=np.uint8)
                 cap = Mock()
                 cap.isOpened.return_value = True
                 cap.read.return_value = (True, camera)
-                stack.enter_context(patch.object(main.cv2, "VideoCapture", return_value=cap))
-                overlay = stack.enter_context(patch.object(main, "draw_debug_overlay"))
+                stack.enter_context(patch.object(app.cv2, "VideoCapture", return_value=cap))
+                overlay = stack.enter_context(patch("kicau.rendering.draw_debug_overlay"))
                 screen = pygame.Surface((800, 600))
                 mode = stack.enter_context(patch.object(pygame.display, "set_mode", return_value=screen))
                 for method in ("init", "set_caption", "quit"):
@@ -39,7 +39,7 @@ class PreviewTests(unittest.TestCase):
                     [pygame.event.Event(pygame.KEYDOWN, key=pygame.K_t)],
                     [pygame.event.Event(pygame.KEYDOWN, key=pygame.K_ESCAPE)],
                 ]))
-                main.main()
+                cli.main()
                 mode.assert_called_once_with((0, 0), pygame.FULLSCREEN)
                 self.assertEqual(len(snapshots), 2)
                 # 16:9 camera on a 4:3 display: precisely 75px above and below.

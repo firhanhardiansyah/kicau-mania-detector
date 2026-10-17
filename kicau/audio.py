@@ -10,7 +10,11 @@ class AudioPlayer:
         if self._initialized:
             return
         pygame.mixer.init()
-        pygame.mixer.music.load(self.music_path)
+        try:
+            pygame.mixer.music.load(self.music_path)
+        except Exception:
+            pygame.mixer.quit()
+            raise
         self._initialized = True
 
     def play_once(self) -> None:

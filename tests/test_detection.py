@@ -1,12 +1,15 @@
 import math
 import unittest
+from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 import numpy as np
 
-from detector import DetectorConfig, KicauDetector
-from motion import WaveMotionTracker, WaveResult
+from kicau.config import DetectorConfig
+from kicau.detector import KicauDetector
+from kicau.models import ModelPaths
+from kicau.motion import WaveMotionTracker, WaveResult
 
 
 def tracker():
@@ -18,11 +21,10 @@ def tracker():
 
 
 def detector_without_models():
-    detector = KicauDetector.__new__(KicauDetector)
-    detector.config = DetectorConfig()
-    detector.motion = tracker()
-    detector._reset_detection_state()
-    return detector
+    with patch("kicau.detector.ModelStore.ensure", return_value=ModelPaths(Path("hand.task"), Path("face.task"))), \
+            patch("kicau.detector.mp.tasks.vision.HandLandmarker.create_from_options"), \
+            patch("kicau.detector.mp.tasks.vision.FaceLandmarker.create_from_options"):
+        return KicauDetector(DetectorConfig())
 
 
 class DetectionTests(unittest.TestCase):
@@ -34,7 +36,7 @@ class DetectionTests(unittest.TestCase):
         for i in range(181):
             now = i / 120
             wave = motion.update(200 + 25 * math.sin(2 * math.pi * 2 * now), 100, now)
-            event, _ = detector._update_state(True, True, wave, now)
+            event, _ = detector.gesture.update(True, True, wave, now)
             triggered |= event
         self.assertTrue(triggered)
 
@@ -55,7 +57,7 @@ class DetectionTests(unittest.TestCase):
     def test_missing_mouth_never_triggers(self):
         detector = detector_without_models()
         for i in range(10):
-            triggered, state = detector._update_state(
+            triggered, state = detector.gesture.update(
                 False, True, WaveResult(True, 1, 5, 200, 3), i / 10
             )
             self.assertFalse(triggered)
@@ -106,11 +108,11 @@ class DetectionTests(unittest.TestCase):
         detector = detector_without_models()
         still = WaveResult(False, 0, 0, 0, 0)
         waving = WaveResult(True, 1, 3, 200, 2)
-        detector._update_state(True, True, still, 0)
-        detector._update_state(True, True, still, 0.26)
-        detector._update_state(True, True, waving, 0.30)
-        detector._update_state(False, False, still, 0.36)
-        triggered, state = detector._update_state(True, True, waving, 0.42)
+        detector.gesture.update(True, True, still, 0)
+        detector.gesture.update(True, True, still, 0.26)
+        detector.gesture.update(True, True, waving, 0.30)
+        detector.gesture.update(False, False, still, 0.36)
+        triggered, state = detector.gesture.update(True, True, waving, 0.42)
         self.assertTrue(triggered)
         self.assertEqual(state, "DANCE_DETECTED")
 
@@ -118,10 +120,10 @@ class DetectionTests(unittest.TestCase):
         detector = detector_without_models()
         still = WaveResult(False, 0, 0, 0, 0)
         waving = WaveResult(True, 1, 3, 200, 2)
-        detector._update_state(True, True, still, 0)
-        detector._update_state(True, True, still, 0.26)
-        detector._update_state(True, True, waving, 0.30)
-        triggered, state = detector._update_state(False, False, still, 0.70)
+        detector.gesture.update(True, True, still, 0)
+        detector.gesture.update(True, True, still, 0.26)
+        detector.gesture.update(True, True, waving, 0.30)
+        triggered, state = detector.gesture.update(False, False, still, 0.70)
         self.assertFalse(triggered)
         self.assertEqual(state, "IDLE")
 

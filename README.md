@@ -151,7 +151,7 @@ and keeps the last mouth position for up to 0.8 seconds when face landmarks are
 briefly obscured.
 
 To adjust thresholds, hold times, or cooldowns, edit `DetectorConfig` in
-[`detector.py`](detector.py).
+[`kicau/config.py`](kicau/config.py).
 
 ### Music or GIFs do not appear
 
@@ -172,8 +172,35 @@ Check your internet connection and run the application again.
 
 ## Development
 
-Detection logic lives in [`detector.py`](detector.py), wave analysis in
-[`motion.py`](motion.py), and preview rendering in [`ui.py`](ui.py).
+The application is organized as a Python package. `main.py` only invokes the CLI;
+individual modules own detection, playback, rendering, and resource cleanup.
+
+| Module | Responsibility |
+| --- | --- |
+| [`kicau/config.py`](kicau/config.py) | Application settings, detection thresholds, asset paths, and GIF placements. |
+| [`kicau/cli.py`](kicau/cli.py) | Argument parsing; `--help` works without loading the camera or ML libraries. |
+| [`kicau/app.py`](kicau/app.py) | Application loop and cleanup of camera, models, audio, and display. |
+| [`kicau/detector.py`](kicau/detector.py) | MediaPipe inference, hand selection, and landmark tracking. |
+| [`kicau/gesture.py`](kicau/gesture.py) | Gesture state transitions, hold times, tracking grace, and cooldown. |
+| [`kicau/motion.py`](kicau/motion.py) | Wave motion analysis. |
+| [`kicau/models.py`](kicau/models.py) | Verified model downloads and local cache management. |
+| [`kicau/playback.py`](kicau/playback.py) | Timing and coordination of music and GIF playback. |
+| [`kicau/audio.py`](kicau/audio.py) | Audio mixer and music playback. |
+| [`kicau/animation.py`](kicau/animation.py) | GIF decoding, transparency, and animation frames. |
+| [`kicau/rendering.py`](kicau/rendering.py) | Camera centering, debug drawing, and GIF compositing. |
+| [`kicau/display.py`](kicau/display.py) | Pygame fullscreen output and keyboard commands. |
+
+To add or reposition GIFs, edit `DEFAULT_OVERLAYS` in `kicau/config.py`. Layout
+changes do not require modifying the application loop. `AppConfig` also controls
+preview duration, camera index, mirroring, and the asset directory; each instance
+has its own `DetectorConfig`.
+
+Both entry points use the same CLI and support `--debug`:
+
+```bash
+python main.py
+python -m kicau
+```
 
 Run the automated tests from the project directory:
 
